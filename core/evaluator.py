@@ -65,3 +65,36 @@ class ConsistencyValidator:
             },
             "nli_inference": nli_stats
         }
+
+def synthesize_diagnostic_report(metrics_payload: dict) -> str:
+    summary_statements = []
+    
+    nli_data = metrics_payload.get("nli_inference", {})
+    primary_verdict = nli_data.get("dominant_label", "Neutral")
+    contradict_risk = nli_data.get("contradiction_prob", 0.0)
+    
+    structural_data = metrics_payload.get("structural_metrics", {})
+    gibberish_index = structural_data.get("gibberish_ratio", 0.0)
+    coherence_index = structural_data.get("coherence_score", 0.0)
+    
+    alignment_data = metrics_payload.get("factual_alignment", {})
+    entity_retention = alignment_data.get("entity_overlap", 0.0)
+
+    if primary_verdict == "Entailment":
+        summary_statements.append("The generated response is factually grounded and directly supported by your source context.")
+    elif primary_verdict == "Contradiction" or contradict_risk > 0.4:
+        summary_statements.append("CRITICAL WARNING: The model has generated claims that actively contradict the provided source material.")
+    else:
+        summary_statements.append("The output is neutral; it contains claims that are neither explicitly confirmed nor denied by the source text, which may indicate a mild hallucination.")
+
+    if entity_retention < 0.3 and primary_verdict != "Contradiction":
+        summary_statements.append("It drops a significant amount of key terminology from the source, suggesting it might be losing focus or over-summarizing.")
+
+    if gibberish_index > 0.15:
+        summary_statements.append("Additionally, the text exhibits repetitive character patterns or unnatural token sequences typical of AI degradation.")
+    elif coherence_index < 0.6:
+        summary_statements.append("The logical flow between sentences is highly disjointed, making it difficult to read.")
+    else:
+        summary_statements.append("Structurally, the text is coherent and free of obvious synthetic artifacts.")
+
+    return " ".join(summary_statements)
