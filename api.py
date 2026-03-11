@@ -21,7 +21,14 @@ def run_evaluation(payload: EvalRequest):
     
     try:
         results = validator_instance.analyze(payload.source_context, payload.generated_text)
-        return {"status": "success", "data": results}
+        human_summary = synthesize_diagnostic_report(results)
+        
+        return_results =  {
+            "status": "success", 
+            "summary": human_summary,
+            "data": results
+        }
+        return {"status": "success", "data": return_results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
