@@ -2,6 +2,8 @@
 This repository provides a deterministic, non-generative evaluation pipeline to assess the factual consistency, semantic overlap, and structural integrity of Large Language Model (LLM) outputs.
 
 Rather than relying on another LLM to grade outputs (which introduces secondary hallucination risks), this system utilizes deterministic NLP metrics, Cross-Encoder Natural Language Inference (NLI), and lexical analysis to ground the generated text against a known source context.
+<img width="1673" height="239" alt="genaieval drawio" src="https://github.com/user-attachments/assets/b3518e32-2679-431e-a63f-d36db86930a7" />
+
 
 ## Key Features
 Factual Alignment (NLI): Uses a DeBERTa-based Cross-Encoder to classify the relationship between the source context and the generated output as Entailment, Contradiction, or Neutral.
