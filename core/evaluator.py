@@ -1,0 +1,67 @@
+import spacy
+import torch
+import numpy as np
+from sentence_transformers import SentenceTransformer, CrossEncoder
+from core.metrics import flag_gibberish, count_syllables, calculate_overlap_metrics
+from lexical_diversity import lex_div as ld
+
+class ConsistencyValidator:
+    def __init__(self):
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.nlp = spacy.load("en_core_web_trf")
+        
+        self.embedder = SentenceTransformer("all-MiniLM-L6-v2", device=self.device)
+        
+        self.nli_classifier = CrossEncoder("cross-encoder/nli-deberta-v3-small", device=self.device)
+
+    def evaluate_coherence(self, content: str, window=2) -> float:
+        segments = content.split(". ")
+        if len(segments) < 2:
+            return 1.0
+
+        vecs = self.embedder.encode(segments, convert_to_numpy=True)
+        sim_scores = []
+        for i in range(len(segments) - window + 1):
+            block = vecs[i : i + window]
+            for j in range(len(block) - 1):
+                from scipy.spatial.distance import cosine
+                sim_scores.append(1 - cosine(block[j], block[j + 1]))
+
+        return float(np.mean(sim_scores)) if sim_scores else 0.0
+
+    def check_nli_entailment(self, premise: str, hypothesis: str) -> dict:
+        scores = self.nli_classifier.predict([(premise, hypothesis)])[0]
+        
+        labels = ["Contradiction", "Entailment", "Neutral"]
+        probabilities = torch.nn.functional.softmax(torch.tensor(scores), dim=0).numpy()
+        
+        return {
+            "dominant_label": labels[np.argmax(probabilities)],
+            "contradiction_prob": float(probabilities[0]),
+            "entailment_prob": float(probabilities[1]),
+            "neutral_prob": float(probabilities[2])
+        }
+
+    def analyze(self, input_context: str, generated_output: str) -> dict:
+        doc = self.nlp(generated_output)
+        raw_tokens = [t.text for t in doc if t.is_alpha]
+        
+        gibberish_arr = [1 if flag_gibberish(t) else 0 for t in raw_tokens]
+        gibb_score = np.mean(gibberish_arr) if gibberish_arr else 0.0
+        
+        overlap_stats = calculate_overlap_metrics(input_context, generated_output, self.nlp)
+        nli_stats = self.check_nli_entailment(input_context, generated_output)
+        coherence_val = self.evaluate_coherence(generated_output)
+
+        return {
+            "structural_metrics": {
+                "gibberish_ratio": round(gibb_score, 4),
+                "lexical_diversity_ttr": round(ld.ttr(raw_tokens), 4) if raw_tokens else 0.0,
+                "coherence_score": round(coherence_val, 4)
+            },
+            "factual_alignment": {
+                "token_overlap": overlap_stats["token_overlap_ratio"],
+                "entity_overlap": overlap_stats["entity_overlap_ratio"]
+            },
+            "nli_inference": nli_stats
+        }
