@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+streamlit
+spacy
+torch
+numpy
+scipy
+sentence-transformers
+rapidfuzz
+lexical-diversity
+textstat
+nltk
+metaphone
